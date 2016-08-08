@@ -1,0 +1,25 @@
+#!/usr/bin/env php
+<?php
+
+$config = require __DIR__.'/config.php';
+require __DIR__.'/../vendor/autoload.php';
+require __DIR__.'/../vendor/doctrine/common/lib/Doctrine/Common/ClassLoader.php';
+
+use App\ConcurrentBatchProcessing as CBP;
+use App\Infrastructure;
+use Symfony\Component\Console\Application as Console;
+use Pimple\Container;
+
+$container = new Container();
+// Register providers
+// note: order matters, first infra so we have Doctrine
+$container->register(new Infrastructure\Provider($config['db']));
+$container->register(new CBP\Provider());
+
+// Create a console and resolve the commands
+$console = new Console();
+$console->add($container[CBP\SetupCommand::class]);
+$console->add($container[CBP\RunCommand::class]);
+
+// Do the work
+$console->run();
