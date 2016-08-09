@@ -34,7 +34,7 @@ class BaseRepository
          * Connection::TRANSACTION_REPEATABLE_READ
          * Connection::TRANSACTION_SERIALIZABLE
          */
-        $this->connection->setTransactionIsolation(Connection::TRANSACTION_REPEATABLE_READ);
+        //$this->connection->setTransactionIsolation(Connection::TRANSACTION_REPEATABLE_READ);
     }
 
     /**

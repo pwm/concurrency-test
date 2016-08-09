@@ -2,12 +2,15 @@
 
 namespace App\Infrastructure;
 
-use DateTime;
+use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\DBALException;
+use PDO;
 
 class StuffRepository extends BaseRepository
 {
     const TABLE = 'stuff';
+    const NUMBER_OF_ENTRIES = 100;
     
     
     /**
@@ -18,13 +21,15 @@ class StuffRepository extends BaseRepository
         $table = $this->schema->createTable(self::TABLE);
         $table->addColumn('id', 'integer', ['unsigned' => true, 'autoIncrement' => true]);
         $table->addColumn('status', 'string', ['length' => 10, 'default' => 'pending']);
-        $table->addColumn('created', 'datetime', ['default' => (new DateTime())->format('Y-m-d H:i:s')]);
+        $table->addColumn('created', 'datetime', ['default' => (new DateTimeImmutable())->format('Y-m-d H:i:s')]);
         $table->addColumn('updated', 'datetime', ['notNull' => false]);
         $table->addColumn('processorId', 'integer', ['notNull' => false]);
         $table->setPrimaryKey(['id']);
 
         $dbPlatform = $this->connection->getSchemaManager()->getDatabasePlatform();
+        //@todo if exists
         $this->connection->exec($this->schema->toDropSql($dbPlatform)[0]);
+        //@todo if not exists
         $this->connection->exec($this->schema->toSql($dbPlatform)[0]);
     }
 
@@ -33,7 +38,7 @@ class StuffRepository extends BaseRepository
      */
     public function seedDummyData()
     {
-        for ($i = 1; $i <= 100; $i++) {
+        for ($i = 1; $i <= self::NUMBER_OF_ENTRIES; $i++) {
             $this->connection->insert(self::TABLE, []);
         }
     }
@@ -53,18 +58,29 @@ class StuffRepository extends BaseRepository
     /**
      * @param int $batchSize
      * @return array
+     * @throws DBALException
      */
     public function getBatch($batchSize)
     {
-        $qb = $this->connection->createQueryBuilder();
-        $qb
-            ->select('*')
-            ->from(self::TABLE, 't')
-            ->where('t.status = :status')
-            ->setParameter(':status', 'pending')
-            ->setFirstResult(0)
-            ->setMaxResults($batchSize);
-        return $qb->execute()->fetchAll();
+        $sql = 'select * from stuff where status = :status limit :limit LOCK IN SHARE MODE';
+        // here it will simply wait till another process does thr work and then
+        // implicitly reads the next batch
+        //$sql = 'select * from stuff where status = :status limit :limit FOR UPDATE';
+        $stmt = $this->connection->prepare($sql);
+        $stmt->bindValue('status', 'pending');
+        $stmt->bindValue('limit', $batchSize, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+
+        //$qb = $this->connection->createQueryBuilder();
+        //$qb
+        //    ->select('*')
+        //    ->from(self::TABLE, 't')
+        //    ->where('t.status = :status')
+        //    ->setParameter(':status', 'pending')
+        //    ->setFirstResult(0)
+        //    ->setMaxResults($batchSize);
+        //return $qb->execute()->fetchAll();
     }
 
     /**
@@ -78,8 +94,10 @@ class StuffRepository extends BaseRepository
         $qb
             ->update(self::TABLE, 't')
             ->set('t.status', ':status')
+            ->set('t.updated', ':updated')
             ->set('t.processorId', ':processorId')
             ->setParameter(':status', 'processed')
+            ->setParameter(':updated', (new DateTimeImmutable())->format('Y-m-d H:i:s'))
             ->setParameter(':processorId', $processorId)
             ->where($qb->expr()->in('id', $ids));
         $qb->execute();

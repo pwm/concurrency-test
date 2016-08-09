@@ -4,6 +4,7 @@ namespace App\ConcurrentBatchProcessing;
 
 use App\Infrastructure\StuffRepository;
 use Closure;
+use Doctrine\DBAL\Exception\DriverException;
 use Exception;
 
 class Processor
@@ -16,12 +17,17 @@ class Processor
     /**
      * @var int
      */
-    private static $simulatedProcessTimePerBatch = 2;
+    private static $simulatedProcessTimePerBatch = 5;
 
     /**
      * @var StuffRepository $stuffRepository
      */
     private $stuffRepository;
+
+    /**
+     * @var int
+     */
+    private $step = 1;
 
 
     /**
@@ -44,18 +50,32 @@ class Processor
     /**
      * @param int $processId
      * @param Closure $progressCallback
+     * @param Closure $failureCallback
      * @throws Exception
      */
-    public function process($processId, Closure $progressCallback)
+    public function process($processId, Closure $progressCallback, Closure $failureCallback)
     {
         $numberOfBatches = ceil($this->stuffRepository->getNumberOfStuff() / self::$batchSize);
-        for ($i = 0; $i < $numberOfBatches; $i++) {
-            $this->stuffRepository->tr(function () use ($processId, $progressCallback, $i) {
-                $currentBatch = $this->getCurrentBatch();
-                $this->simulateProcessingCurrentBatch();
-                $this->updateCurrentBatch($processId, array_map(function ($e) { return $e['id']; }, $currentBatch));
-                $progressCallback($i + 1);
-            });
+        for ($batchNumber = 1; $batchNumber <= $numberOfBatches; $batchNumber++) {
+            try {
+                $this->step = 1;
+                $this->stuffRepository->tr(function () use ($processId, $progressCallback, $batchNumber) {
+                    $progressCallback(sprintf('batch %s is about to be read ...', $batchNumber));
+                    $this->step++;
+                    $currentBatch = $this->getCurrentBatch();
+                    if (count($currentBatch) > 0) {
+                        $progressCallback(sprintf('batch %s was read. About to be processed ...', $batchNumber));
+                        $this->step++;
+                        $this->simulateProcessingCurrentBatch($processId);
+                        $progressCallback(sprintf('batch %s was processed. About to be updated ...', $batchNumber));
+                        $this->step++;
+                        $this->updateCurrentBatch($processId, array_map(function ($e) { return $e['id']; }, $currentBatch));
+                        $progressCallback(sprintf('batch %s has been updated.', $batchNumber));
+                    }
+                });
+            } catch (DriverException $e) {
+                $failureCallback(sprintf('batch %s failed at step %s.', $batchNumber, $this->step));
+            }
         }
     }
 
@@ -70,9 +90,10 @@ class Processor
     /**
      * @return void
      */
-    private function simulateProcessingCurrentBatch()
+    private function simulateProcessingCurrentBatch($processId)
     {
-        sleep(self::$simulatedProcessTimePerBatch);
+        sleep($processId);
+        //sleep(self::$simulatedProcessTimePerBatch);
     }
 
     /**

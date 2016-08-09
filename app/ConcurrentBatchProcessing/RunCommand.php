@@ -3,6 +3,7 @@
 namespace App\ConcurrentBatchProcessing;
 
 use Closure;
+use Exception;
 use Symfony\Component\Console\Command\Command as BaseCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -37,7 +38,7 @@ class RunCommand extends BaseCommand
         $this
             ->setName('processor:run')
             ->setDescription('This command processes batches of stuff.')
-            ->addArgument('processId', InputArgument::REQUIRED, 'The id of the process.');
+            ->addArgument('processorId', InputArgument::REQUIRED, 'The id of the process.');
     }
 
     /**
@@ -45,24 +46,50 @@ class RunCommand extends BaseCommand
      * @param OutputInterface $output
      * @return null|int
      * @throws InvalidArgumentException
+     * @throws Exception
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $processId = $input->getArgument('processId');
-        $output->writeln('Start processing data set ...');
-        $this->processor->process($processId, $this->getProgressIndicatorFn($output, $processId));
-        $output->writeln('Data set processing finished.');
+        $processorId = $input->getArgument('processorId');
+        $output->writeln('<info>'.sprintf('Processor %s start processing ...', $processorId).'<info>');
+        usleep(10000);
+
+        $startTime = microtime(true);
+        $this->processor->process(
+            $processorId, 
+            $this->getProgressIndicatorFn($output, $processorId),
+            $this->getFailureIndicatorFn($output, $processorId)
+        );
+        $endTime = microtime(true) - $startTime;
+
+        usleep(10000);
+        $output->writeln('<info>'.sprintf('Processor %s finished.', $processorId).'<info>');
+        $output->writeln(sprintf('Total processing: %s', $endTime));
     }
 
     /**
      * @param OutputInterface $output
-     * @param int $processId
+     * @param int $processorId
      * @return Closure
      */
-    private function getProgressIndicatorFn(OutputInterface $output, $processId)
+    private function getProgressIndicatorFn(OutputInterface $output, $processorId)
     {
-        return function ($batchNumber) use ($output, $processId) {
-            $output->writeln(sprintf('Batch %s is processed by processor %s', $batchNumber, $processId));
+        return function ($msg) use ($output, $processorId) {
+            $txt = '<info>'.sprintf('Processor %s reports: ', $processorId).$msg.'</info>';
+            $output->writeln($txt);
+        };
+    }
+
+    /**
+     * @param OutputInterface $output
+     * @param int $processorId
+     * @return Closure
+     */
+    private function getFailureIndicatorFn(OutputInterface $output, $processorId)
+    {
+        return function ($msg) use ($output, $processorId) {
+            $txt = '<error>'.sprintf('Processor %s reports: ', $processorId).$msg.'</error>';
+            $output->writeln($txt);
         };
     }
 }

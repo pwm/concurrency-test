@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -u # exit on unset var
+set -e # exit on non-true return value
+cd $(dirname ${BASH_SOURCE[0]}) # change to project root for relative paths
+
+########
+
+if [ "$#" -eq 0 ]; then
+	echo "Please set the number of concurrent processors."
+	exit 1
+else
+    app/console processor:setup # setup data set
+    for ((c = 1; c <= $1; c++)); do # spawn processors
+        app/console processor:run ${c} &
+    done
+    wait
+fi
