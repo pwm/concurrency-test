@@ -6,7 +6,7 @@ return [
         'type' => 'pdo_mysql',
         'host' => '127.0.0.1',
         'user' => 'root',
-        'pass' => '1234',
+        'pass' => 'root',
         'name' => 'processor',
     ]
 ];

@@ -18,8 +18,8 @@ class Provider implements ServiceProviderInterface
      * @var array
      */
     private $dbConfig;
-    
-    
+
+
     /**
      * @param array $dbConfig
      */
@@ -27,7 +27,7 @@ class Provider implements ServiceProviderInterface
     {
         $this->dbConfig = $dbConfig;
     }
-    
+
     /**
      * @param Container $container
      * @throws LogicException
@@ -35,10 +35,8 @@ class Provider implements ServiceProviderInterface
      */
     public function register(Container $container)
     {
-        $container[StuffRepository::class] = new StuffRepository(
-            $this->getDoctrineConnection(),
-            $this->getSchema()
-        );
+        $container[DbCreator::class] = new DbCreator($this->getDoctrineConnection(), new Schema());
+        $container[StuffRepository::class] = new StuffRepository($this->getDoctrineConnection());
     }
 
     /**
@@ -47,6 +45,11 @@ class Provider implements ServiceProviderInterface
      */
     private function getDoctrineConnection()
     {
+        static $connection;
+        if ($connection instanceof Connection) {
+            return $connection;
+        }
+
         $classLoader = new ClassLoader('Doctrine', '../../vendor/doctrine/');
         $classLoader->register();
 
@@ -58,15 +61,9 @@ class Provider implements ServiceProviderInterface
             'password' => $this->dbConfig['pass'],
             'dbname'   => $this->dbConfig['name'],
         ];
-        
-        return DriverManager::getConnection($connectionParams, $config);
-    }
 
-    /**
-     * @return Schema
-     */
-    private function getSchema()
-    {
-        return new Schema();
+        $connection = DriverManager::getConnection($connectionParams, $config);
+        $connection->connect();
+        return $connection;
     }
 }

@@ -2,12 +2,11 @@
 
 namespace App\Infrastructure;
 
-use Closure;
 use \Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Schema\Schema;
+use Closure;
 use Exception;
 
-class BaseRepository
+abstract class BaseRepository
 {
     /**
      * @var Connection
@@ -15,42 +14,23 @@ class BaseRepository
     protected $connection;
 
     /**
-     * @var Schema
+     * @var array
      */
-    protected $schema;
-
+    private static $isolationLevels = [
+        1 => Connection::TRANSACTION_READ_UNCOMMITTED,
+        2 => Connection::TRANSACTION_READ_COMMITTED,
+        3 => Connection::TRANSACTION_REPEATABLE_READ, // Default
+        4 => Connection::TRANSACTION_SERIALIZABLE,
+    ];
+    
 
     /**
      * @param Connection $connection
-     * @param Schema $schema
      */
-    public function __construct(Connection $connection, Schema $schema)
+    public function __construct(Connection $connection)
     {
         $this->connection = $connection;
-        $this->schema = $schema;
-        /**
-         * Connection::TRANSACTION_READ_UNCOMMITTED
-         * Connection::TRANSACTION_READ_COMMITTED
-         * Connection::TRANSACTION_REPEATABLE_READ
-         * Connection::TRANSACTION_SERIALIZABLE
-         */
-        //$this->connection->setTransactionIsolation(Connection::TRANSACTION_REPEATABLE_READ);
-    }
-
-    /**
-     * @return Connection
-     */
-    public function getConnection()
-    {
-        return $this->connection;
-    }
-
-    /**
-     * @return Schema
-     */
-    public function getSchema()
-    {
-        return $this->schema;
+        //$this->connection->setTransactionIsolation(self::$isolationLevels[3]);
     }
 
     /**

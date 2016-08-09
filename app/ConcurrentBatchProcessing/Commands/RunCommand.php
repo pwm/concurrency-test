@@ -1,12 +1,14 @@
 <?php
 
-namespace App\ConcurrentBatchProcessing;
+namespace App\ConcurrentBatchProcessing\Commands;
 
+use App\ConcurrentBatchProcessing\Processor;
 use Closure;
 use Exception;
 use Symfony\Component\Console\Command\Command as BaseCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Exception\InvalidArgumentException;
 use Symfony\Component\Console\Exception\LogicException;
@@ -17,6 +19,11 @@ class RunCommand extends BaseCommand
      * @var Processor
      */
     private $processor;
+
+    /**
+     * @var bool
+     */
+    private $debug;
 
 
     /**
@@ -38,7 +45,8 @@ class RunCommand extends BaseCommand
         $this
             ->setName('processor:run')
             ->setDescription('This command processes batches of stuff.')
-            ->addArgument('processorId', InputArgument::REQUIRED, 'The id of the process.');
+            ->addArgument('pid', InputArgument::REQUIRED, 'The id of the process.')
+            ->addOption('debug', 'd', InputOption::VALUE_NONE, 'Run in debug mode');
     }
 
     /**
@@ -50,46 +58,49 @@ class RunCommand extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $processorId = $input->getArgument('processorId');
-        $output->writeln('<info>'.sprintf('Processor %s start processing ...', $processorId).'<info>');
-        usleep(10000);
+        $this->debug = $input->getOption('debug');
+        $pid = $input->getArgument('pid');
+        $output->writeln('<info>'.sprintf('Processor %s start processing ...', $pid).'<info>');
 
         $startTime = microtime(true);
         $this->processor->process(
-            $processorId, 
-            $this->getProgressIndicatorFn($output, $processorId),
-            $this->getFailureIndicatorFn($output, $processorId)
+            $pid, 
+            $this->getProgressIndicatorFn($output, $pid),
+            $this->getFailureIndicatorFn($output, $pid)
         );
         $endTime = microtime(true) - $startTime;
 
-        usleep(10000);
-        $output->writeln('<info>'.sprintf('Processor %s finished.', $processorId).'<info>');
+        $output->writeln('<info>'.sprintf('Processor %s finished.', $pid).'<info>');
         $output->writeln(sprintf('Total processing: %s', $endTime));
     }
 
     /**
      * @param OutputInterface $output
-     * @param int $processorId
+     * @param int $pid
      * @return Closure
      */
-    private function getProgressIndicatorFn(OutputInterface $output, $processorId)
+    private function getProgressIndicatorFn(OutputInterface $output, $pid)
     {
-        return function ($msg) use ($output, $processorId) {
-            $txt = '<info>'.sprintf('Processor %s reports: ', $processorId).$msg.'</info>';
-            $output->writeln($txt);
+        return function ($msg) use ($output, $pid) {
+            if ($this->debug) {
+                $txt = '<info>'.sprintf('Processor %s reports at %s: ', $pid, microtime(true)).$msg.'</info>';
+                $output->writeln($txt);
+            }
         };
     }
 
     /**
      * @param OutputInterface $output
-     * @param int $processorId
+     * @param int $pid
      * @return Closure
      */
-    private function getFailureIndicatorFn(OutputInterface $output, $processorId)
+    private function getFailureIndicatorFn(OutputInterface $output, $pid)
     {
-        return function ($msg) use ($output, $processorId) {
-            $txt = '<error>'.sprintf('Processor %s reports: ', $processorId).$msg.'</error>';
-            $output->writeln($txt);
+        return function ($msg) use ($output, $pid) {
+            if ($this->debug) {
+                $txt = '<error>'.sprintf('Processor %s reports: ', $pid).$msg.'</error>';
+                $output->writeln($txt);
+            }
         };
     }
 }

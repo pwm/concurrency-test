@@ -18,8 +18,8 @@ $container->register(new CBP\Provider());
 
 // Create a console and resolve the commands
 $console = new Console();
-$console->add($container[CBP\SetupCommand::class]);
-$console->add($container[CBP\RunCommand::class]);
+$console->add($container[CBP\Commands\SetupCommand::class]);
+$console->add($container[CBP\Commands\RunCommand::class]);
 
 // Do the work
 $console->run();
