@@ -18,8 +18,9 @@ class Processor
     /**
      * @var int
      */
-    //private static $simulatedBatchProcessTimeInMicroSeconds = 500000;
-    private static $simulatedBatchProcessTimeInMicroSeconds = 100000000;
+    //private static $simulatedBatchProcessTimeInMicroSeconds = 500000; // 0.5 sec
+    private static $simulatedBatchProcessTimeInMicroSeconds = 5000000; // 5 sec
+    //private static $simulatedBatchProcessTimeInMicroSeconds = 100000000; // 100 sec
 
     /**
      * @var StuffRepository $stuffRepository
@@ -49,21 +50,21 @@ class Processor
     public function process($processId, Closure $progressCallback, Closure $failureCallback)
     {
         $numberOfBatches = ceil($this->stuffRepository->getNumberOfRecords() / self::$batchSize);
-        for ($batchNumber = 1; $batchNumber <= $numberOfBatches; $batchNumber++) {
+        for ($batchNumber = 0; $batchNumber <= $numberOfBatches; $batchNumber++) {
             try {
+                $this->stuffRepository->acquireBatch($batchNumber);
                 $this->step = 1;
                 $this->stuffRepository->tr(function () use ($processId, $progressCallback, $batchNumber) {
                     //$progressCallback(sprintf('batch %s is about to be read ...', $batchNumber));
-                    $currentBatch = $this->getCurrentBatch();
+                    $currentBatch = $this->stuffRepository->getBatch($batchNumber, self::$batchSize);
                     $currentBatchIds = array_map(function ($e) { return $e['id']; }, $currentBatch);
                     $this->step++;
                     if (count($currentBatch) > 0) {
                         $progressCallback(sprintf('batch %s was read: %s About to be processed ...', $batchNumber, implode(',', $currentBatchIds)));
-                        //$this->simulateProcessingCurrentBatch();
+                        $this->simulateProcessingCurrentBatch();
                         $this->step++;
                         //$progressCallback(sprintf('batch %s was processed. About to be updated ...', $batchNumber));
-                        $this->updateCurrentBatch($processId, $currentBatchIds);
-                        $this->step++;
+                        $this->stuffRepository->updateBatch($processId, $currentBatchIds);
                         $progressCallback(sprintf('batch %s has been updated.', $batchNumber));
                     }
                 });
@@ -74,29 +75,10 @@ class Processor
     }
 
     /**
-     * @return array
-     * @throws DBALException
-     */
-    private function getCurrentBatch()
-    {
-        return $this->stuffRepository->getBatch(self::$batchSize);
-    }
-
-    /**
      * @return void
      */
     private function simulateProcessingCurrentBatch()
     {
         usleep(self::$simulatedBatchProcessTimeInMicroSeconds);
-    }
-
-    /**
-     * @param int $processId
-     * @param array $ids
-     * @return void
-     */
-    private function updateCurrentBatch($processId, array $ids)
-    {
-        $this->stuffRepository->updateBatch($processId, $ids);
     }
 }

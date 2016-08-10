@@ -40,7 +40,7 @@ class DbCreator
     public function setUp()
     {
         $this->dropTables();
-        $this->createLogTableSchema();
+        $this->createBatchLockTableSchema();
         $this->createStuffTableSchema();
         $this->executeSchemaSql();
         $this->seedDummyData();
@@ -51,20 +51,18 @@ class DbCreator
      */
     private function dropTables()
     {
-        $this->connection->exec('drop table if exists log');
+        $this->connection->exec('drop table if exists batchLock');
         $this->connection->exec('drop table if exists stuff');
     }
     
     /**
      *
      */
-    private function createLogTableSchema()
+    private function createBatchLockTableSchema()
     {
-        $table = $this->schema->createTable('log');
-        $table->addColumn('id', 'integer', ['unsigned' => true, 'autoIncrement' => true]);
-        $table->addColumn('pid', 'string');
-        $table->addColumn('ts', 'float');
-        $table->setPrimaryKey(['id']);
+        $table = $this->schema->createTable('batchLock');
+        $table->addColumn('batchId', 'integer', ['unsigned' => true, 'unique' => true]);
+        $table->addUniqueIndex(['batchId']);
     }
 
     /**

@@ -21,28 +21,45 @@ class StuffRepository extends BaseRepository
     }
 
     /**
+     * @param int $batchNumber
+     * @throws DBALException
+     */
+    public function acquireBatch($batchNumber)
+    {
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->insert('batchLock')
+            ->values(['batchId' => ':batchId'])
+            ->setParameter(':batchId', $batchNumber);
+        $qb->execute();
+    }
+
+    /**
+     * @param int $batchNumber
      * @param int $batchSize
      * @return array
      * @throws DBALException
      */
-    public function getBatch($batchSize)
+    public function getBatch($batchNumber, $batchSize)
     {
         // normal, non-locking mode
         // all TRs will read and update => records updated as many times as many TRs => :(
-        //$sql = 'select * from stuff where status = :status limit :limit';
+        //$sql = 'select * from stuff where status = :status limit :lFrom, :lTo';
 
         // shared lock
         // reads, does the work and then first TR wins, the rest fails
-        $sql = 'select * from stuff where status = :status limit :limit LOCK IN SHARE MODE';
+        $sql = 'select * from stuff where status = :status limit :lFrom, :lTo LOCK IN SHARE MODE';
+        //$sql = 'select * from stuff limit :lFrom, :lTo LOCK IN SHARE MODE';
 
         // exclusive lock
         // here it will simply wait till another process does thr work and then
         // implicitly reads the next batch
-        //$sql = 'select * from stuff where status = :status limit :limit FOR UPDATE';
+        //$sql = 'select * from stuff where status = :status limit :lFrom, :lTo FOR UPDATE';
 
         $stmt = $this->connection->prepare($sql);
-        $stmt->bindValue('status', 'pending');
-        $stmt->bindValue('limit', $batchSize, PDO::PARAM_INT);
+        $stmt->bindValue(':status', 'pending');
+        $stmt->bindValue(':lFrom', $batchNumber * $batchSize, PDO::PARAM_INT);
+        $stmt->bindValue(':lTo', $batchSize, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
 
